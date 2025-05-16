@@ -1,0 +1,18 @@
+[
+  {
+    "question": "Care este capitala Franței?",
+    "options": ["Paris", "Berlin", "Madrid", "Roma"],
+    "correct": "Paris"
+  },
+  {
+    "question": "Ce simbol are fluorul?",
+    "options": ["Fl", "F", "Fr", "Fe"],
+    "correct": "F"
+  },
+  {
+    "question": "Câte continente are planeta Pământ?",
+    "options": ["5", "6", "7", "8"],
+    "correct": "7"
+  }
+]
+
