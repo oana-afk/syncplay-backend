@@ -12,7 +12,12 @@ def admin_panel():
         set_active_question(selected_show, question_id)
         return redirect(url_for("admin.admin_panel"))
 
-    shows = get_shows()
-    questions = get_questions_for_show(selected_show) if selected_show else []
+    shows, questions = [], []
+    try:
+        shows = get_shows()
+        if selected_show:
+            questions = get_questions_for_show(selected_show)
+    except Exception as e:
+        print(f"🔥 Eroare în /admin: {e}")
 
     return render_template("admin.html", shows=shows, questions=questions, selected_show=selected_show)
