@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for
 from firebase_utils import get_shows, get_questions_for_show, set_active_question
 
-admin_bp = Blueprint("admin", __name__, template_folder="../admin_panel/templates")
+admin_bp = Blueprint("admin", __name__, template_folder="admin_panel/templates")
 
 @admin_bp.route("/admin", methods=["GET", "POST"])
 def admin_panel():
