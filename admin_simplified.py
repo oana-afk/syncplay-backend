@@ -33,7 +33,7 @@ def admin_panel():
     questions = QUESTIONS.get(selected_show, []) if selected_show else []
     
     return render_template(
-        "admin_static.html", 
+        "admin_simple.html", 
         shows=SHOWS, 
         questions=questions, 
         selected_show=selected_show
