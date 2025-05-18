@@ -20,4 +20,9 @@ def admin_panel():
     except Exception as e:
         print(f"🔥 Eroare în /admin: {e}")
 
+    # ✅ Acestea trebuie să fie în interiorul funcției
+    print("💡 Shows:", shows)
+    print("💡 Selected show:", selected_show)
+    print("💡 Questions:", questions)
+
     return render_template("admin.html", shows=shows, questions=questions, selected_show=selected_show)
