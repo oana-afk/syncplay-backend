@@ -3,7 +3,6 @@ import json
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-# Inițializare Firestore o singură dată
 firebase_app = None
 db = None
 
@@ -17,14 +16,24 @@ def init_firebase():
     return db
 
 def get_shows():
-    db = init_firebase()
-    shows_ref = db.collection('shows')
-    return [doc.id for doc in shows_ref.stream()]
+    try:
+        db = init_firebase()
+        shows_ref = db.collection('shows')
+        docs = list(shows_ref.stream())
+        return [doc.id for doc in docs]
+    except Exception as e:
+        print(f"🔥 Eroare la get_shows: {e}")
+        return []
 
 def get_questions_for_show(show_id):
-    db = init_firebase()
-    questions_ref = db.collection('shows').document(show_id).collection('questions')
-    return [{**q.to_dict(), 'id': q.id} for q in questions_ref.stream()]
+    try:
+        db = init_firebase()
+        questions_ref = db.collection('shows').document(show_id).collection('questions')
+        docs = list(questions_ref.stream())
+        return [{**q.to_dict(), 'id': q.id} for q in docs]
+    except Exception as e:
+        print(f"🔥 Eroare la get_questions: {e}")
+        return []
 
 def set_active_question(show_id, question_id):
     db = init_firebase()
