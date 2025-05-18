@@ -3,8 +3,16 @@ from flask_cors import CORS
 from routes.ai_routes import ai_bp
 from routes.quiz_routes import quiz_bp
 from routes.scene_routes import scene_bp
-from admin_simplified import admin_bp  # importă versiunea simplificată
+from admin_simplified import admin_bp   
+from firebase_diagnostic import firebase_diagnostic_bp   
 
+def create_app():
+    # Codul existent...
+    
+    # Adaugă noul blueprint
+    app.register_blueprint(firebase_diagnostic_bp)
+    
+    # Restul codului existent...
 def create_app():
     app = Flask(__name__)
     CORS(app)
@@ -14,6 +22,7 @@ def create_app():
     app.register_blueprint(quiz_bp, url_prefix='/api/quiz')
     app.register_blueprint(scene_bp, url_prefix='/api/scene')
     app.register_blueprint(admin_bp)
+    app.register_blueprint(firebase_diagnostic_bp)
 
     @app.route('/')
     def index():
