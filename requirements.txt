@@ -2,3 +2,4 @@ flask==2.3.3
 gunicorn==21.2.0
 google-generativeai==0.5.4
 flask-cors
+firebase-admin>=6.2.0
