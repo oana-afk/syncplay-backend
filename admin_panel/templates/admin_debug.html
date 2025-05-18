@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Debug</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; margin: 20px; }
+        .error { color: red; border: 1px solid red; padding: 10px; margin: 15px 0; }
+        .success { color: green; border: 1px solid green; padding: 10px; margin: 15px 0; }
+        .info { background: #f0f0f0; padding: 10px; margin: 10px 0; }
+        h2 { color: #333; }
+    </style>
+</head>
+<body>
+    <h2>Admin Panel - Diagnostic</h2>
+    
+    <div class="info">
+        <strong>Status Firebase:</strong> 
+        {% if firebase_status == "CONFIGURAT" %}
+            <span style="color:green">✅ CONFIGURAT</span>
+        {% else %}
+            <span style="color:red">❌ NECONFIGURAT</span>
+        {% endif %}
+    </div>
+    
+    {% if firebase_error %}
+        <div class="error">
+            <strong>Eroare:</strong> {{ firebase_error }}
+        </div>
+    {% endif %}
+    
+    <h3>Acțiuni de diagnosticare:</h3>
+    <ol>
+        <li>Verifică credențialele Firebase în Heroku</li>
+        <li>Asigură-te că Firebase Admin SDK este instalat corect</li>
+        <li>Verifică versiunea bibliotecii firebase-admin</li>
+        <li>Verifică dacă proiectul Firebase există și este activ</li>
+    </ol>
+    
+    <p><a href="/">Înapoi la pagina principală</a></p>
+</body>
+</html>
