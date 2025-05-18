@@ -3,7 +3,7 @@ from flask_cors import CORS
 from routes.ai_routes import ai_bp
 from routes.quiz_routes import quiz_bp
 from routes.scene_routes import scene_bp
-from admin import admin_bp  # blueprint pentru admin panel
+from fix_admin import admin_bp  # folosește noul modul simplificat
 
 def create_app():
     app = Flask(__name__)
