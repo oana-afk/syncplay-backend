@@ -5,6 +5,7 @@ import time
 import os
 import json
 import random
+from firebase_utils import init_firebase
 
 quiz_bp = Blueprint('quiz_bp', __name__)
 
@@ -164,21 +165,22 @@ def save_active_question_local(show_id, question_id):
 
 
 def get_active_question_local(show_id="detectivul_din_canapea"):
-    """Obține întrebarea activă din fișier (fără a păstra cache permanent)"""
-    global _active_questions
+    """Obține întrebarea activă din Firebase, nu din fișierul local"""
+    try:
+        db = init_firebase()
+        if not db:
+            return "q1"
 
-    # Reîncarcă fișierul de fiecare dată pentru a evita inconsistențe
-    if os.path.exists(ACTIVE_QUESTION_FILE):
-        try:
-            with open(ACTIVE_QUESTION_FILE, 'r', encoding='utf-8') as f:
-                active_questions = json.load(f)
-                _active_questions.update(active_questions)
-                return active_questions.get(show_id)
-        except Exception as e:
-            print(f"❌ Eroare la citirea fișierului {ACTIVE_QUESTION_FILE}: {e}")
+        doc_ref = db.collection("shows").document(show_id).collection("metadata").document("status")
+        doc = doc_ref.get()
+        if doc.exists:
+            data = doc.to_dict()
+            return data.get("current_question_id", "q1")
+        else:
+            print(f"⚠️ Documentul de status nu există pentru show: {show_id}")
+    except Exception as e:
+        print(f"❌ Eroare la citirea întrebării active din Firebase: {e}")
 
-    # Fallback dacă fișierul nu există sau nu conține show-ul
-    print(f"⚠️ Nu s-a găsit întrebarea activă pentru {show_id}, returnăm fallback 'q1'")
     return "q1"
 
 
