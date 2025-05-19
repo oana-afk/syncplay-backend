@@ -92,6 +92,15 @@ def set_active_question(show_id, question_id):
             
         metadata_ref = db.collection('shows').document(show_id).collection('metadata').document('status')
         metadata_ref.set({'current_question_id': question_id})
+
+        # 🔁 Salvăm și local în active_questions.json
+        try:
+            with open("active_questions.json", "w", encoding="utf-8") as f:
+                json.dump({show_id: question_id}, f, ensure_ascii=False, indent=2)
+            print(f"✅ Întrebarea activă a fost salvată și local în active_questions.json")
+        except Exception as e:
+            print(f"⚠️ Eroare la salvarea locală a întrebării active: {e}")
+
         return True
     except Exception as e:
         print(f"🔥 Eroare la set_active_question: {e}")
