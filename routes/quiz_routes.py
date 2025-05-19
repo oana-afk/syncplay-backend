@@ -269,7 +269,7 @@ def get_current_quiz():
     all_questions = get_quiz_data_with_timeout()
 
     # Verifică dacă există o întrebare activă
-    active_question_id = get_active_question_local()
+    active_question_id = get_active_question_live("detectivul_din_canapea")
     print(f"🔍 Întrebare activă: {active_question_id}")
 
     # Reordonează întrebările pentru a pune întrebarea activă prima
