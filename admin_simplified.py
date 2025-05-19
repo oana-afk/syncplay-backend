@@ -22,8 +22,22 @@ FALLBACK_QUESTIONS = {
     ]
 }
 
-def get_shows_with_timeout(timeout=5):
+# Rezultate cache pentru a evita apeluri Firebase repetate
+_shows_cache = None
+_questions_cache = {}
+_last_cache_update = 0
+CACHE_TIMEOUT = 300  # 5 minute
+
+def get_shows_with_timeout(timeout=2):
     """Obține lista de show-uri cu timeout strict"""
+    global _shows_cache, _last_cache_update
+    
+    # Folosește cache dacă este disponibil și încă valid
+    current_time = time.time()
+    if _shows_cache is not None and (current_time - _last_cache_update) < CACHE_TIMEOUT:
+        print("💾 Folosind show-uri din cache")
+        return _shows_cache, None, False
+    
     result = []
     firebase_error = None
     firebase_timeout = False
@@ -55,11 +69,24 @@ def get_shows_with_timeout(timeout=5):
     
     if not result and not firebase_error:
         firebase_error = "Nu s-au găsit show-uri în Firebase"
+    
+    if result:
+        # Actualizează cache-ul
+        _shows_cache = result
+        _last_cache_update = current_time
         
     return result, firebase_error, firebase_timeout
 
-def get_questions_with_timeout(show_id, timeout=5):
+def get_questions_with_timeout(show_id, timeout=2):
     """Obține întrebările pentru un show cu timeout strict"""
+    global _questions_cache, _last_cache_update
+    
+    # Folosește cache dacă este disponibil și încă valid
+    current_time = time.time()
+    if show_id in _questions_cache and (current_time - _last_cache_update) < CACHE_TIMEOUT:
+        print(f"💾 Folosind întrebări din cache pentru {show_id}")
+        return _questions_cache[show_id], None, False
+    
     result = []
     firebase_error = None
     firebase_timeout = False
@@ -84,6 +111,11 @@ def get_questions_with_timeout(show_id, timeout=5):
         print(f"⚠️ Timeout la obținerea întrebărilor după {timeout} secunde")
         firebase_timeout = True
         return [], "Timeout la obținerea întrebărilor din Firebase", True
+    
+    if result:
+        # Actualizează cache-ul
+        _questions_cache[show_id] = result
+        _last_cache_update = current_time
         
     return result, firebase_error, firebase_timeout
 
@@ -92,22 +124,41 @@ def admin_panel():
     start_time = time.time()
     firebase_error = None
     firebase_timeout = False
-    db = init_firebase()
     
+    db = init_firebase()
     if not db:
         firebase_error = "Nu s-a putut stabili conexiunea cu Firebase"
     
-    selected_show = request.form.get("show_id") if request.method == "POST" else None
+    selected_show = request.form.get("show_id") if request.method == "POST" else request.args.get("show_id")
     question_id = request.form.get("question_id")
     
     # Procesează activarea întrebării dacă este cazul
-    if selected_show and question_id:
+    if selected_show and question_id and request.method == "POST":
         try:
-            success = set_active_question(selected_show, question_id)
-            if success:
+            # Folosim un timeout și pentru activarea întrebării
+            timeout_seconds = 3
+            activation_success = [False]  # Folosim o listă pentru a putea modifica din thread
+            
+            def activate_question():
+                try:
+                    result = set_active_question(selected_show, question_id)
+                    activation_success[0] = result
+                except Exception as e:
+                    print(f"Eroare la activarea întrebării: {e}")
+            
+            thread = threading.Thread(target=activate_question)
+            thread.daemon = True
+            thread.start()
+            thread.join(timeout_seconds)
+            
+            if thread.is_alive():
+                firebase_error = f"Timeout la activarea întrebării după {timeout_seconds} secunde"
+                firebase_timeout = True
+            elif activation_success[0]:
                 print(f"✅ Întrebare activată: {question_id} pentru show: {selected_show}")
             else:
                 firebase_error = "Nu s-a putut activa întrebarea"
+                
         except Exception as e:
             firebase_error = f"Eroare la activarea întrebării: {str(e)}"
         
