@@ -299,7 +299,7 @@ def admin_panel():
     print(f"⏱️ Timp total procesare admin: {processing_time:.2f} secunde")
     
     return render_template(
-        "admin.html",
+        "admin_simple.html",
         shows=shows,
         questions=questions,
         selected_show=selected_show,
