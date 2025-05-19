@@ -164,24 +164,26 @@ def save_active_question_local(show_id, question_id):
         return False
 
 
-def get_active_question_local(show_id="detectivul_din_canapea"):
-    """Obține întrebarea activă din Firebase, nu din fișierul local"""
+def get_active_question_live(show_id):
+    """Obține întrebarea activă din Firebase metadata/status"""
     try:
         db = init_firebase()
         if not db:
-            return "q1"
+            print("⚠️ Firebase indisponibil, fallback pe local")
+            return get_active_question_local(show_id)
 
-        doc_ref = db.collection("shows").document(show_id).collection("metadata").document("status")
+        doc_ref = db.collection('shows').document(show_id).collection('metadata').document('status')
         doc = doc_ref.get()
         if doc.exists:
             data = doc.to_dict()
             return data.get("current_question_id", "q1")
         else:
-            print(f"⚠️ Documentul de status nu există pentru show: {show_id}")
+            print("⚠️ Documentul status nu există")
     except Exception as e:
-        print(f"❌ Eroare la citirea întrebării active din Firebase: {e}")
+        print(f"🔥 Eroare la citirea întrebării active din Firebase: {e}")
 
-    return "q1"
+    return get_active_question_local(show_id)
+
 
 
 
@@ -226,7 +228,7 @@ def reorder_questions_with_active_first(questions, active_id):
 def debug_quiz():
     """Endpoint de debug pentru a inspecta toate datele relevante"""
     all_questions = get_quiz_data_with_timeout()
-    active_question_id = get_active_question_local()
+    active_question_id = get_active_question_live("detectivul_din_canapea")
 
     # Verifică dacă întrebarea activă există în lista de întrebări
     active_found = False
