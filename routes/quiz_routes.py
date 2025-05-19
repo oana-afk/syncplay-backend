@@ -161,27 +161,38 @@ def reorder_questions_with_active_first(questions, active_id):
 
     return questions
 
-@quiz_bp.route('/current', methods=['GET'])
-def get_current_quiz():
-    start_time = time.time()
 
-    # Obține quiz-urile cu timeout și caching
+@quiz_bp.route('/debug', methods=['GET'])
+def debug_quiz():
+    """Endpoint de debug pentru a inspecta toate datele relevante"""
     all_questions = get_quiz_data_with_timeout()
-
-    # Verifică dacă există o întrebare activă
     active_question_id = get_active_question_local()
-    print(f"🔍 Întrebare activă: {active_question_id}")
 
-    # Reordonează întrebările pentru a pune întrebarea activă prima
-    # Acest lucru asigură că API-ul va returna array-ul complet, dar că
-    # selectorul aleatoriu din aplicație are șanse mari să selecteze prima
-    # întrebare - care va fi cea activă
-    if active_question_id:
-        all_questions = reorder_questions_with_active_first(all_questions, active_question_id)
+    # Verifică dacă întrebarea activă există în lista de întrebări
+    active_found = False
+    question_ids = []
 
-    # Calculează timpul de procesare
-    processing_time = time.time() - start_time
-    print(f"⏱️ Timp procesare quiz: {processing_time:.2f} secunde")
+    for q in all_questions:
+        q_id = q.get("id", "MISSING_ID")
+        question_ids.append(q_id)
+        if q_id == active_question_id:
+            active_found = True
 
-    # Returnează lista completă de întrebări, cu cea activă prima
-    return jsonify(all_questions)
+    # Returnează toate informațiile pentru debugging
+    debug_info = {
+        "active_question_id": active_question_id,
+        "active_found_in_questions": active_found,
+        "question_ids": question_ids,
+        "questions_count": len(all_questions),
+        "active_questions_file_exists": os.path.exists(ACTIVE_QUESTION_FILE),
+    }
+
+    # Adaugă conținutul fișierului active_questions.json dacă există
+    if os.path.exists(ACTIVE_QUESTION_FILE):
+        try:
+            with open(ACTIVE_QUESTION_FILE, 'r') as f:
+                debug_info["active_questions_file_content"] = json.load(f)
+        except Exception as e:
+            debug_info["active_questions_file_error"] = str(e)
+
+    return jsonify(debug_info)
