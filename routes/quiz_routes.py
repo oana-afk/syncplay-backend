@@ -22,7 +22,6 @@ _quiz_data_cache = None
 _last_cache_update = 0
 CACHE_TIMEOUT = 300  # 5 minute
 
-
 # Inițializează fișierul active_questions.json la pornire
 def initialize_active_questions_file():
     """Creează fișierul active_questions.json dacă nu există"""
@@ -34,10 +33,8 @@ def initialize_active_questions_file():
         except Exception as e:
             print(f"❌ Eroare la crearea fișierului {ACTIVE_QUESTION_FILE}: {e}")
 
-
 # Inițializează fișierul la import
 initialize_active_questions_file()
-
 
 def get_quiz_data_with_timeout(timeout=2):
     """Obține datele quiz cu timeout și caching"""
@@ -105,12 +102,10 @@ def get_quiz_data_with_timeout(timeout=2):
         _last_cache_update = current_time
         return result
 
-    # Dacă avem eroare dar avem cache vechi, folosește-l
     if _quiz_data_cache is not None:
         print("⚠️ Eroare la obținerea quiz-urilor, folosim cache-ul vechi")
         return _quiz_data_cache
 
-    # Ultimul resort - date statice
     return [
         {
             "question": "Care este capitala Franței?",
@@ -131,7 +126,6 @@ def get_quiz_data_with_timeout(timeout=2):
             "id": "q3"
         }
     ]
-
 
 def save_active_question_local(show_id, question_id):
     """Salvează întrebarea activă în fișier și memoria locală"""
@@ -163,7 +157,6 @@ def save_active_question_local(show_id, question_id):
         print(f"❌ Eroare la salvare: {e}")
         return False
 
-
 def get_active_question_live(show_id):
     """Obține întrebarea activă din Firebase metadata/status"""
     try:
@@ -184,8 +177,15 @@ def get_active_question_live(show_id):
 
     return get_active_question_local(show_id)
 
-
-
+def get_active_question_local(show_id):
+    """Obține întrebarea activă din fișierul local"""
+    try:
+        with open(ACTIVE_QUESTION_FILE, 'r') as f:
+            active_questions = json.load(f)
+            return active_questions.get(show_id, "q1")
+    except Exception as e:
+        print(f"⚠️ Eroare la citirea fișierului local: {e}")
+        return _active_questions.get(show_id, "q1")
 
 def reorder_questions_with_active_first(questions, active_id):
     """Reordonează întrebările pentru a pune întrebarea activă prima"""
@@ -223,6 +223,16 @@ def reorder_questions_with_active_first(questions, active_id):
 
     return questions
 
+def get_show_title(show_id):
+    """Obține titlul emisiunii din Firebase (fallback: formatat din show_id)"""
+    try:
+        db = init_firebase()
+        doc = db.collection("shows").document(show_id).get()
+        if doc.exists:
+            return doc.to_dict().get("title", show_id.replace("_", " ").title())
+    except Exception as e:
+        print(f"⚠️ Eroare la citirea titlului pentru {show_id}: {e}")
+    return show_id.replace("_", " ").title()
 
 @quiz_bp.route('/debug', methods=['GET'])
 def debug_quiz():
@@ -260,7 +270,6 @@ def debug_quiz():
 
     return jsonify(debug_info)
 
-
 @quiz_bp.route('/current', methods=['GET'])
 def get_current_quiz():
     start_time = time.time()
@@ -287,7 +296,7 @@ def get_current_quiz():
 def get_current_question(show_id):
     # Citim întrebarea activă
     active_question_id = get_active_question_live(show_id)
-    
+
     # Încărcăm toate întrebările
     questions = get_quiz_data_with_timeout()
 
@@ -299,10 +308,9 @@ def get_current_question(show_id):
 
     return jsonify({
         "show_id": show_id,
-        "show_title": show_id.replace("_", " ").title(),
+        "show_title": get_show_title(show_id),
         "question": active_question["question"],
         "options": active_question["options"],
         "correct": active_question["correct"],
         "id": active_question["id"]
     })
-
