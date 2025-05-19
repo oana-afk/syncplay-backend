@@ -27,11 +27,28 @@ FALLBACK_QUESTIONS = {
 # Fișier local pentru a stoca întrebarea activă când Firebase eșuează
 ACTIVE_QUESTION_FILE = "active_questions.json"
 
+# Variabilă în memorie pentru întrebările active
+_active_questions_memory = {}
+
 # Rezultate cache pentru a evita apeluri Firebase repetate
 _shows_cache = None
 _questions_cache = {}
 _last_cache_update = 0
 CACHE_TIMEOUT = 300  # 5 minute
+
+# Inițializează fișierul active_questions.json la pornire
+def initialize_active_questions_file():
+    """Creează fișierul active_questions.json dacă nu există"""
+    if not os.path.exists(ACTIVE_QUESTION_FILE):
+        try:
+            with open(ACTIVE_QUESTION_FILE, 'w') as f:
+                json.dump(_active_questions_memory, f)
+            print(f"✅ Fișierul {ACTIVE_QUESTION_FILE} creat cu succes")
+        except Exception as e:
+            print(f"❌ Eroare la crearea fișierului {ACTIVE_QUESTION_FILE}: {e}")
+
+# Inițializează fișierul la import
+initialize_active_questions_file()
 
 def get_shows_with_timeout(timeout=2):
     """Obține lista de show-uri cu timeout strict"""
@@ -147,34 +164,41 @@ def set_active_question_safe(show_id, question_id, timeout=3):
     thread.join(timeout)
     
     if thread.is_alive():
-        # Thread-ul încă rulează, scriem în fișierul local
+        # Thread-ul încă rulează, scriem în fișierul local și memoria locală
         save_active_question_local(show_id, question_id)
         return False, f"Timeout la activarea întrebării după {timeout} secunde. Salvată local."
     
     if not activation_success[0] or activation_error[0]:
-        # Firebase a eșuat, salvează întrebarea local
+        # Firebase a eșuat, salvăm întrebarea local
         save_active_question_local(show_id, question_id)
         error_msg = activation_error[0] or "Eroare necunoscută"
         return False, f"Eroare Firebase: {error_msg}. Întrebare salvată local."
     
-    # Firebase a reușit, sincronizăm și fișierul local
+    # Firebase a reușit, sincronizăm și stocarea locală
     save_active_question_local(show_id, question_id)
     return True, None
 
 def save_active_question_local(show_id, question_id):
-    """Salvează întrebarea activă într-un fișier local când Firebase eșuează"""
+    """Salvează întrebarea activă în memoria locală și fișier"""
+    global _active_questions_memory
+    
+    # Actualizează memoria
+    _active_questions_memory[show_id] = question_id
+    
+    # Salvează în fișier pentru persistență între request-uri (dar nu între reporniri)
     try:
-        active_questions = {}
+        # Inițializează fișierul dacă nu există
+        initialize_active_questions_file()
         
-        # Încarcă datele existente dacă fișierul există
-        if os.path.exists(ACTIVE_QUESTION_FILE):
+        # Încearcă să citească conținutul existent
+        try:
             with open(ACTIVE_QUESTION_FILE, 'r') as f:
                 active_questions = json.load(f)
+        except Exception:
+            active_questions = {}
         
-        # Actualizează întrebarea activă pentru show-ul specificat
+        # Actualizează și salvează
         active_questions[show_id] = question_id
-        
-        # Salvează înapoi în fișier
         with open(ACTIVE_QUESTION_FILE, 'w') as f:
             json.dump(active_questions, f)
             
@@ -185,17 +209,26 @@ def save_active_question_local(show_id, question_id):
         return False
 
 def get_active_question_local(show_id):
-    """Obține întrebarea activă din fișierul local"""
-    if not os.path.exists(ACTIVE_QUESTION_FILE):
-        return None
-        
-    try:
-        with open(ACTIVE_QUESTION_FILE, 'r') as f:
-            active_questions = json.load(f)
-            return active_questions.get(show_id)
-    except Exception as e:
-        print(f"❌ Eroare la citirea din fișierul local: {e}")
-        return None
+    """Obține întrebarea activă din memoria locală sau fișier"""
+    global _active_questions_memory
+    
+    # Încearcă întâi din memorie
+    if show_id in _active_questions_memory:
+        return _active_questions_memory[show_id]
+    
+    # Apoi încearcă din fișier dacă există
+    if os.path.exists(ACTIVE_QUESTION_FILE):
+        try:
+            with open(ACTIVE_QUESTION_FILE, 'r') as f:
+                active_questions = json.load(f)
+                # Actualizează memoria cu valorile din fișier
+                _active_questions_memory.update(active_questions)
+                return active_questions.get(show_id)
+        except Exception as e:
+            print(f"❌ Eroare la citirea din fișierul local: {e}")
+    
+    # Returnează q1 pentru a forța afișarea întrebării 1
+    return "q1"
 
 @admin_bp.route("/admin", methods=["GET", "POST"])
 def admin_panel():
@@ -254,7 +287,7 @@ def admin_panel():
                 print(f"⚠️ Folosind întrebări statice pentru {selected_show}")
                 questions = FALLBACK_QUESTIONS.get(selected_show, [])
     
-    # Obține întrebarea activă pentru show-ul selectat (din local dacă Firebase eșuează)
+    # Obține întrebarea activă pentru show-ul selectat (din memorie sau local)
     active_question_id = None
     if selected_show:
         active_question_id = get_active_question_local(selected_show)
