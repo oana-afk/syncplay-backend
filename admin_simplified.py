@@ -242,6 +242,8 @@ def admin_panel():
     
     selected_show = request.form.get("show_id") if request.method == "POST" else request.args.get("show_id")
     question_id = request.form.get("question_id")
+        print(f"🎯 Admin a trimis: show_id={selected_show}, question_id={question_id}")
+
     
     # Procesează activarea întrebării dacă este cazul
     if selected_show and question_id and request.method == "POST":
