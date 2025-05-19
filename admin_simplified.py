@@ -2,6 +2,8 @@ from flask import Blueprint, render_template, request, redirect, url_for
 from firebase_utils import get_shows, get_questions_for_show, set_active_question, init_firebase
 import threading
 import time
+import os
+import json
 
 admin_bp = Blueprint("admin", __name__, template_folder="admin_panel/templates")
 
@@ -21,6 +23,9 @@ FALLBACK_QUESTIONS = {
         {"id": "q2", "text": "Câți jurați sunt?", "correct": "4"},
     ]
 }
+
+# Fișier local pentru a stoca întrebarea activă când Firebase eșuează
+ACTIVE_QUESTION_FILE = "active_questions.json"
 
 # Rezultate cache pentru a evita apeluri Firebase repetate
 _shows_cache = None
@@ -119,6 +124,79 @@ def get_questions_with_timeout(show_id, timeout=2):
         
     return result, firebase_error, firebase_timeout
 
+def set_active_question_safe(show_id, question_id, timeout=3):
+    """Versiune mai sigură a funcției set_active_question cu timeout și fallback local"""
+    activation_success = [False]  # Folosim o listă pentru a putea modifica din thread
+    activation_error = [None]
+    
+    def activate_question():
+        try:
+            # Încearcă să activeze întrebarea în Firebase
+            result = set_active_question(show_id, question_id)
+            activation_success[0] = result
+        except Exception as e:
+            activation_error[0] = str(e)
+            print(f"🔥 Eroare la set_active_question: {e}")
+    
+    # Pornește un thread pentru operația de activare
+    thread = threading.Thread(target=activate_question)
+    thread.daemon = True
+    thread.start()
+    
+    # Așteaptă maxim 'timeout' secunde
+    thread.join(timeout)
+    
+    if thread.is_alive():
+        # Thread-ul încă rulează, scriem în fișierul local
+        save_active_question_local(show_id, question_id)
+        return False, f"Timeout la activarea întrebării după {timeout} secunde. Salvată local."
+    
+    if not activation_success[0] or activation_error[0]:
+        # Firebase a eșuat, salvează întrebarea local
+        save_active_question_local(show_id, question_id)
+        error_msg = activation_error[0] or "Eroare necunoscută"
+        return False, f"Eroare Firebase: {error_msg}. Întrebare salvată local."
+    
+    # Firebase a reușit, sincronizăm și fișierul local
+    save_active_question_local(show_id, question_id)
+    return True, None
+
+def save_active_question_local(show_id, question_id):
+    """Salvează întrebarea activă într-un fișier local când Firebase eșuează"""
+    try:
+        active_questions = {}
+        
+        # Încarcă datele existente dacă fișierul există
+        if os.path.exists(ACTIVE_QUESTION_FILE):
+            with open(ACTIVE_QUESTION_FILE, 'r') as f:
+                active_questions = json.load(f)
+        
+        # Actualizează întrebarea activă pentru show-ul specificat
+        active_questions[show_id] = question_id
+        
+        # Salvează înapoi în fișier
+        with open(ACTIVE_QUESTION_FILE, 'w') as f:
+            json.dump(active_questions, f)
+            
+        print(f"✅ Întrebare salvată local: {question_id} pentru show: {show_id}")
+        return True
+    except Exception as e:
+        print(f"❌ Eroare la salvarea locală: {e}")
+        return False
+
+def get_active_question_local(show_id):
+    """Obține întrebarea activă din fișierul local"""
+    if not os.path.exists(ACTIVE_QUESTION_FILE):
+        return None
+        
+    try:
+        with open(ACTIVE_QUESTION_FILE, 'r') as f:
+            active_questions = json.load(f)
+            return active_questions.get(show_id)
+    except Exception as e:
+        print(f"❌ Eroare la citirea din fișierul local: {e}")
+        return None
+
 @admin_bp.route("/admin", methods=["GET", "POST"])
 def admin_panel():
     start_time = time.time()
@@ -134,34 +212,13 @@ def admin_panel():
     
     # Procesează activarea întrebării dacă este cazul
     if selected_show and question_id and request.method == "POST":
-        try:
-            # Folosim un timeout și pentru activarea întrebării
-            timeout_seconds = 3
-            activation_success = [False]  # Folosim o listă pentru a putea modifica din thread
-            
-            def activate_question():
-                try:
-                    result = set_active_question(selected_show, question_id)
-                    activation_success[0] = result
-                except Exception as e:
-                    print(f"Eroare la activarea întrebării: {e}")
-            
-            thread = threading.Thread(target=activate_question)
-            thread.daemon = True
-            thread.start()
-            thread.join(timeout_seconds)
-            
-            if thread.is_alive():
-                firebase_error = f"Timeout la activarea întrebării după {timeout_seconds} secunde"
-                firebase_timeout = True
-            elif activation_success[0]:
-                print(f"✅ Întrebare activată: {question_id} pentru show: {selected_show}")
-            else:
-                firebase_error = "Nu s-a putut activa întrebarea"
-                
-        except Exception as e:
-            firebase_error = f"Eroare la activarea întrebării: {str(e)}"
+        success, error_message = set_active_question_safe(selected_show, question_id)
         
+        if success:
+            print(f"✅ Întrebare activată: {question_id} pentru show: {selected_show}")
+        else:
+            firebase_error = error_message
+            
         return redirect(url_for("admin.admin_panel", show_id=selected_show))
     
     # Obține show-uri din Firebase cu timeout
@@ -197,6 +254,11 @@ def admin_panel():
                 print(f"⚠️ Folosind întrebări statice pentru {selected_show}")
                 questions = FALLBACK_QUESTIONS.get(selected_show, [])
     
+    # Obține întrebarea activă pentru show-ul selectat (din local dacă Firebase eșuează)
+    active_question_id = None
+    if selected_show:
+        active_question_id = get_active_question_local(selected_show)
+    
     # Calculează timpul total de procesare
     processing_time = time.time() - start_time
     print(f"⏱️ Timp total procesare admin: {processing_time:.2f} secunde")
@@ -208,5 +270,6 @@ def admin_panel():
         selected_show=selected_show,
         firebase_error=firebase_error,
         firebase_timeout=firebase_timeout,
+        active_question_id=active_question_id,
         processing_time=f"{processing_time:.2f}"
     )
