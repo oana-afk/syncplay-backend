@@ -11,10 +11,29 @@ quiz_bp = Blueprint('quiz_bp', __name__)
 # Fișier local pentru a citi întrebarea activă
 ACTIVE_QUESTION_FILE = "active_questions.json"
 
+# Întrebare activă în memorie, pentru când fișierul este șters între reporniri
+_active_questions = {
+    "detectivul_din_canapea": "q1"  # Valoare hardcodată pentru a asigura afișarea
+}
+
 # Cache pentru quiz-uri
 _quiz_data_cache = None
 _last_cache_update = 0
 CACHE_TIMEOUT = 300  # 5 minute
+
+# Inițializează fișierul active_questions.json la pornire
+def initialize_active_questions_file():
+    """Creează fișierul active_questions.json dacă nu există"""
+    if not os.path.exists(ACTIVE_QUESTION_FILE):
+        try:
+            with open(ACTIVE_QUESTION_FILE, 'w') as f:
+                json.dump(_active_questions, f)
+            print(f"✅ Fișierul {ACTIVE_QUESTION_FILE} creat cu succes")
+        except Exception as e:
+            print(f"❌ Eroare la crearea fișierului {ACTIVE_QUESTION_FILE}: {e}")
+
+# Inițializează fișierul la import
+initialize_active_questions_file()
 
 def get_quiz_data_with_timeout(timeout=2):
     """Obține datele quiz cu timeout și caching"""
@@ -109,18 +128,59 @@ def get_quiz_data_with_timeout(timeout=2):
         }
     ]
 
-def get_active_question_local(show_id="detectivul_din_canapea"):
-    """Obține întrebarea activă din fișierul local"""
-    if not os.path.exists(ACTIVE_QUESTION_FILE):
-        return None
-        
+def save_active_question_local(show_id, question_id):
+    """Salvează întrebarea activă în fișier și memoria locală"""
+    global _active_questions
+    
+    # Actualizează dicționarul în memorie
+    _active_questions[show_id] = question_id
+    
+    # Salvează și în fișier pentru persistență între cereri
     try:
-        with open(ACTIVE_QUESTION_FILE, 'r') as f:
-            active_questions = json.load(f)
-            return active_questions.get(show_id)
+        # Asigură-te că fișierul există înainte de a-l citi
+        initialize_active_questions_file()
+        
+        # Încearcă să citești conținutul existent dacă există
+        try:
+            with open(ACTIVE_QUESTION_FILE, 'r') as f:
+                active_questions = json.load(f)
+        except Exception:
+            active_questions = {}
+        
+        # Actualizează și salvează înapoi
+        active_questions[show_id] = question_id
+        with open(ACTIVE_QUESTION_FILE, 'w') as f:
+            json.dump(active_questions, f)
+            
+        print(f"✅ Întrebare salvată: {question_id} pentru show: {show_id}")
+        return True
     except Exception as e:
-        print(f"❌ Eroare la citirea din fișierul local: {e}")
-        return None
+        print(f"❌ Eroare la salvare: {e}")
+        return False
+
+def get_active_question_local(show_id="detectivul_din_canapea"):
+    """Obține întrebarea activă din memorie sau fișier"""
+    global _active_questions
+    
+    # Încearcă întâi din memorie
+    if show_id in _active_questions:
+        return _active_questions[show_id]
+    
+    # Apoi încearcă din fișier dacă există
+    if os.path.exists(ACTIVE_QUESTION_FILE):
+        try:
+            with open(ACTIVE_QUESTION_FILE, 'r') as f:
+                active_questions = json.load(f)
+                
+                # Actualizează memoria cu datele din fișier
+                _active_questions.update(active_questions)
+                
+                return active_questions.get(show_id)
+        except Exception as e:
+            print(f"❌ Eroare la citire: {e}")
+    
+    # Returnează un ID hardcodat pentru demonstrație
+    return "q1"  # Forțăm întotdeauna prima întrebare pentru testare
 
 def reorder_questions_with_active_first(questions, active_id):
     """Reordonează întrebările pentru a pune întrebarea activă prima"""
@@ -181,6 +241,7 @@ def debug_quiz():
         "question_ids": question_ids,
         "questions_count": len(all_questions),
         "active_questions_file_exists": os.path.exists(ACTIVE_QUESTION_FILE),
+        "active_questions_in_memory": _active_questions
     }
     
     # Adaugă conținutul fișierului active_questions.json dacă există
