@@ -282,3 +282,27 @@ def get_current_quiz():
 
     # Returnează lista completă de întrebări, cu cea activă prima
     return jsonify(all_questions)
+
+@quiz_bp.route("/current_question/<show_id>")
+def get_current_question(show_id):
+    # Citim întrebarea activă
+    active_question_id = get_active_question_live(show_id)
+    
+    # Încărcăm toate întrebările
+    questions = get_quiz_data_with_timeout()
+
+    # Căutăm întrebarea activă în listă
+    active_question = next((q for q in questions if q["id"] == active_question_id), None)
+
+    if not active_question:
+        return jsonify({"error": "Întrebare activă nu a fost găsită"}), 404
+
+    return jsonify({
+        "show_id": show_id,
+        "show_title": show_id.replace("_", " ").title(),
+        "question": active_question["question"],
+        "options": active_question["options"],
+        "correct": active_question["correct"],
+        "id": active_question["id"]
+    })
+
