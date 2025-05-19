@@ -13,10 +13,7 @@
 </head>
 <body>
     <div class="container">
-        <h2>Admin Quiz Launcher (Date Statice)</h2>
-        
-        <p><b>Notă:</b> Această versiune folosește date pre-definite fără a încerca 
-        să se conecteze la Firebase, pentru a evita timeout-urile.</p>
+        <h2>Admin Quiz Launcher</h2>
 
         <!-- Select Show -->
         <form method="POST">
@@ -34,22 +31,23 @@
             <h3>Întrebări pentru <code>{{ selected_show }}</code>:</h3>
 
             {% if questions %}
-                <form method="POST">
-                    <input type="hidden" name="show_id" value="{{ selected_show }}">
-                    {% for q in questions %}
+                {% for q in questions %}
+                    <form method="POST" style="margin-bottom: 10px;">
+                        <input type="hidden" name="show_id" value="{{ selected_show }}">
+                        <input type="hidden" name="question_id" value="{{ q.id }}">
                         <div class="question-item">
                             <b>{{ q.text }}</b><br>
                             <small>Răspuns corect: <b>{{ q.correct }}</b></small><br>
                             <small>ID: {{ q.id }}</small><br>
-                            <button name="question_id" value="{{ q.id }}" type="submit">Lansează această întrebare</button>
+                            <button type="submit">Lansează această întrebare</button>
                         </div>
-                    {% endfor %}
-                </form>
+                    </form>
+                {% endfor %}
             {% else %}
                 <p>Nu există întrebări pentru acest show.</p>
             {% endif %}
         {% endif %}
-        
+
         <hr>
         <p><a href="/">Înapoi la pagina principală</a></p>
     </div>
