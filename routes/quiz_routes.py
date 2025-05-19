@@ -2,8 +2,14 @@ from flask import Blueprint, jsonify
 from services.data_loader import load_quiz_data
 import threading
 import time
+import os
+import json
+import random
 
 quiz_bp = Blueprint('quiz_bp', __name__)
+
+# Fișier local pentru a citi întrebarea activă
+ACTIVE_QUESTION_FILE = "active_questions.json"
 
 # Cache pentru quiz-uri
 _quiz_data_cache = None
@@ -53,17 +59,20 @@ def get_quiz_data_with_timeout(timeout=2):
             {
                 "question": "Care este capitala Franței?",
                 "options": ["Paris", "Berlin", "Madrid", "Roma"],
-                "correct": "Paris"
+                "correct": "Paris",
+                "id": "q1"
             },
             {
                 "question": "Ce simbol are fluorul?",
                 "options": ["Fl", "F", "Fr", "Fe"],
-                "correct": "F"
+                "correct": "F",
+                "id": "q2"
             },
             {
                 "question": "Câte continente are planeta Pământ?",
                 "options": ["5", "6", "7", "8"],
-                "correct": "7"
+                "correct": "7",
+                "id": "q3"
             }
         ]
     
@@ -83,29 +92,77 @@ def get_quiz_data_with_timeout(timeout=2):
         {
             "question": "Care este capitala Franței?",
             "options": ["Paris", "Berlin", "Madrid", "Roma"],
-            "correct": "Paris"
+            "correct": "Paris",
+            "id": "q1"
         },
         {
             "question": "Ce simbol are fluorul?",
             "options": ["Fl", "F", "Fr", "Fe"],
-            "correct": "F"
+            "correct": "F",
+            "id": "q2"
         },
         {
             "question": "Câte continente are planeta Pământ?",
             "options": ["5", "6", "7", "8"],
-            "correct": "7"
+            "correct": "7",
+            "id": "q3"
         }
     ]
+
+def get_active_question_local(show_id="detectivul_din_canapea"):
+    """Obține întrebarea activă din fișierul local"""
+    if not os.path.exists(ACTIVE_QUESTION_FILE):
+        return None
+        
+    try:
+        with open(ACTIVE_QUESTION_FILE, 'r') as f:
+            active_questions = json.load(f)
+            return active_questions.get(show_id)
+    except Exception as e:
+        print(f"❌ Eroare la citirea din fișierul local: {e}")
+        return None
+
+def reorder_questions_with_active_first(questions, active_id):
+    """Reordonează întrebările pentru a pune întrebarea activă prima"""
+    if not active_id:
+        return questions
+        
+    active_question = None
+    other_questions = []
+    
+    for q in questions:
+        if q.get("id") == active_id:
+            active_question = q
+        else:
+            other_questions.append(q)
+    
+    if active_question:
+        print(f"✅ Punem întrebarea activă ({active_id}) prima în listă")
+        return [active_question] + other_questions
+    
+    return questions
 
 @quiz_bp.route('/current', methods=['GET'])
 def get_current_quiz():
     start_time = time.time()
     
     # Obține quiz-urile cu timeout și caching
-    quiz_data = get_quiz_data_with_timeout()
+    all_questions = get_quiz_data_with_timeout()
+    
+    # Verifică dacă există o întrebare activă
+    active_question_id = get_active_question_local()
+    print(f"🔍 Întrebare activă: {active_question_id}")
+    
+    # Reordonează întrebările pentru a pune întrebarea activă prima
+    # Acest lucru asigură că API-ul va returna array-ul complet, dar că
+    # selectorul aleatoriu din aplicație are șanse mari să selecteze prima
+    # întrebare - care va fi cea activă
+    if active_question_id:
+        all_questions = reorder_questions_with_active_first(all_questions, active_question_id)
     
     # Calculează timpul de procesare
     processing_time = time.time() - start_time
     print(f"⏱️ Timp procesare quiz: {processing_time:.2f} secunde")
     
-    return jsonify(quiz_data)
+    # Returnează lista completă de întrebări, cu cea activă prima
+    return jsonify(all_questions)
