@@ -44,9 +44,9 @@ def get_quiz_data_with_timeout(timeout=2):
 
     # Verifică cache-ul întâi
     current_time = time.time()
-    if _quiz_data_cache is not None and (current_time - _last_cache_update) < CACHE_TIMEOUT:
-        print("💾 Folosind date quiz din cache")
-        return _quiz_data_cache
+    # 💣 Dezactivăm complet cache-ul pentru debugging live (temporar sau permanent)
+    _quiz_data_cache = None
+    _last_cache_update = 0
 
     result = None
     timeout_occurred = False
