@@ -1,40 +1,41 @@
 from flask import Blueprint, render_template, request, redirect, url_for
+from firebase_utils import get_shows, get_questions_for_show, set_active_question, init_firebase
 
 admin_bp = Blueprint("admin", __name__, template_folder="admin_panel/templates")
 
-# Date statice - fără Firebase
-SHOWS = ["detectivul_din_canapea", "master_chef", "vocea_romaniei"]
-QUESTIONS = {
-    "detectivul_din_canapea": [
-        {"id": "q1", "text": "Cine a furat mingea?", "correct": "Pisica"},
-        {"id": "q2", "text": "Cine este detectivul?", "correct": "Tu"},
-    ],
-    "master_chef": [
-        {"id": "q1", "text": "Câte ouă folosim la omletă?", "correct": "2"},
-        {"id": "q2", "text": "Care este ingredientul secret?", "correct": "Dragostea"},
-    ],
-    "vocea_romaniei": [
-        {"id": "q1", "text": "Cine a câștigat sezonul trecut?", "correct": "Concurentul X"},
-        {"id": "q2", "text": "Câți jurați sunt?", "correct": "4"},
-    ]
-}
-
 @admin_bp.route("/admin", methods=["GET", "POST"])
 def admin_panel():
+    firebase_error = None
+    db = init_firebase()
+    
+    if not db:
+        firebase_error = "Nu s-a putut stabili conexiunea cu Firebase"
+    
     selected_show = request.form.get("show_id") if request.method == "POST" else None
     question_id = request.form.get("question_id")
     
+    # Procesează activarea întrebării dacă este cazul
     if selected_show and question_id:
-        # Simulează activarea întrebării
-        print(f"Activare întrebare: {question_id} pentru show: {selected_show}")
-        return redirect(url_for("admin.admin_panel"))
+        success = set_active_question(selected_show, question_id)
+        if success:
+            print(f"✅ Întrebare activată: {question_id} pentru show: {selected_show}")
+        else:
+            firebase_error = "Nu s-a putut activa întrebarea"
+        return redirect(url_for("admin.admin_panel", show_id=selected_show))
     
-    # Obține întrebări pentru show-ul selectat
-    questions = QUESTIONS.get(selected_show, []) if selected_show else []
+    # Obține show-uri și întrebări din Firebase
+    shows = []
+    questions = []
+    
+    if db:  # Doar dacă Firebase este conectat
+        shows = get_shows()
+        if selected_show:
+            questions = get_questions_for_show(selected_show)
     
     return render_template(
-        "admin_simple.html", 
-        shows=SHOWS, 
-        questions=questions, 
-        selected_show=selected_show
+        "admin.html",  # Folosim template-ul admin.html
+        shows=shows,
+        questions=questions,
+        selected_show=selected_show,
+        firebase_error=firebase_error
     )
